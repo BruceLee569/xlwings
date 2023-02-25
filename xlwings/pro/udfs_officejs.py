@@ -240,6 +240,33 @@ def custom_functions_code(module):
            }
            return rawData.result;
          }
+
+         const socket = io({ path: "/ws/socket.io/" });
+
+         function clock(invocation) {
+            socket.emit("myclock", "xxx");
+
+             socket.on("connect", () => {
+               // Used for reconnects
+               console.log("Connected", socket.id);
+               socket.emit("myclock", "xxx");
+             });
+
+             socket.on("disconnect", () => {
+                console.log("Disconnected", socket.id);
+                invocation.setResult([["Connecting..."]]);
+             });
+
+             socket.on("myclock", data => {
+                console.log(data);
+                invocation.setResult([[data.data]]);
+             });
+
+             // invocation.onCanceled = () => {
+             //    socket.disconnect();
+             // }
+         }
+         CustomFunctions.associate("CLOCK", clock);
     """.replace(
         "xlwings_version", __version__
     )  # format string would require to double all curly braces
@@ -250,7 +277,7 @@ def custom_functions_code(module):
             func_name = xlfunc["name"]
             js += dedent(
                 f"""\
-            async function {func_name}() {{
+            async function {func_name}2() {{
                 args = ["{func_name}"]
                 args.push.apply(args, arguments);
                 return await base.apply(null, args);
@@ -274,8 +301,10 @@ def custom_functions_meta(module):
             else:
                 func["name"] = xlfunc["name"].upper()
             func["options"] = {
-                "requiresAddress": True,
-                "requiresParameterAddresses": True,
+                # stream can't be combined with those
+                # "requiresAddress": True,
+                # "requiresParameterAddresses": True,
+                "stream": True,
             }
             if xlfunc["volatile"]:
                 func["options"]["volatile"] = True

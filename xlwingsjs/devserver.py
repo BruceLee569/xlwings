@@ -1,9 +1,12 @@
+import asyncio
 import datetime as dt
+import time
 from pathlib import Path
 
 import custom_functions
 import jinja2
 import markupsafe
+import socketio
 from dateutil import tz
 from fastapi import Body, FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,8 +19,45 @@ import xlwings as xw
 # from tests import udf_tests_officejs as custom_functions
 
 app = FastAPI()
+sio = socketio.AsyncServer(
+    cors_allowed_origins=["https://127.0.0.1:8000"],
+    async_mode="asgi",
+    logger=True,
+    engineio_logger=True,
+)
+extended_app = socketio.ASGIApp(sio)
+app.mount("/ws", extended_app)
 
 this_dir = Path(__file__).resolve().parent
+
+
+async def clock_():
+    while True:
+        await sio.emit("myclock", {"data": time.time()})
+        await asyncio.sleep(1)
+
+
+@sio.on("connect")
+async def connect(sid, environ, auth):
+    # TODO: auth
+    print(f"Socket connected with sid {sid}")
+
+
+@sio.on("disconnect")
+async def disconnect(sid):
+    print("disconnect ", sid)
+
+
+background_task_started = False
+
+
+@sio.on("myclock")
+async def myclock(sid, message):
+    print(message)
+    global background_task_started
+    if not background_task_started:
+        sio.start_background_task(clock_)
+        background_task_started = True
 
 
 @app.post("/hello")
